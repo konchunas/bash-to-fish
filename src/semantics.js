@@ -469,7 +469,7 @@ var source2sourceSemantics = {
     return ret;
   },
   Call: function(_s, cmd, _e) {
-    return cmd.toJS(0, this.args.ctx).replace(/;$/, '');
+    return "(" + cmd.toJS(0, this.args.ctx) + ")";
   },
   arrayReference: function(_s, arrId, _e) { return arrId.toJS(0, this.args.ctx); },
   arrayLength: function(_s, arrId, _e) { return arrId.toJS(0, this.args.ctx) + '.length'; },
