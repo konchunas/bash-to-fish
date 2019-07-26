@@ -129,7 +129,7 @@ function envGuess(str) {
   else if (str.match(/^\d+$/))
     return arrayName() + '[' + (JSON.parse(str)+(inFunctionBody ? -1 : 1)) + ']';
   else if (str === str.toUpperCase())
-    return (globalInclude.value ? '' : 'shell.') + 'env.' + str; // assume it's an environmental variable
+    return (globalInclude.value ? '' : 'shell.') + str; // assume it's an environmental variable
   else
     return str;
 }
@@ -190,19 +190,19 @@ var source2sourceSemantics = {
       ef.toJS(this.args.indent, this.args.ctx);
   },
   IfCase: function(_if, _s, cond, _sc, _then, _s2, cmds) {
-    return 'if (' + cond.toJS(this.args.indent, this.args.ctx) + ') {' + nl(this.args.indent+1) +
+    return 'if ' + cond.toJS(this.args.indent, this.args.ctx) + nl(this.args.indent+1) +
         cmds.toJS(this.args.indent+1, this.args.ctx);
   },
   ElseIfThen: function(_sc1, _ei, _s, cond, _sc2, _then, _s2, cmd) {
-    return nl(this.args.indent) + '} else if (' + cond.toJS(this.args.indent, this.args.ctx) +
-        ') {' + nl(this.args.indent+1) + cmd.toJS(this.args.indent+1, this.args.ctx);
+    return nl(this.args.indent) + 'else if' + cond.toJS(this.args.indent, this.args.ctx) +
+        nl(this.args.indent+1) + cmd.toJS(this.args.indent+1, this.args.ctx);
   },
   ElseCase: function(_sc, _else, _space, cmd) {
-    return nl(this.args.indent) + '} else {' + nl(this.args.indent+1) +
+    return nl(this.args.indent) + 'else' + nl(this.args.indent+1) +
         cmd.toJS(this.args.indent+1, this.args.ctx);
   },
   EndIf: function(_sc, _fi) {
-    return nl(this.args.indent) + '}';
+    return nl(this.args.indent) + 'end';
   },
   ForCommand: function(f) { return f.toJS(this.args.indent, this.args.ctx); },
   ForCommand_c_style: function(_for, _op, ctrlstruct, _cp, _sc3, _do, _s, cmd, done) {
@@ -326,13 +326,7 @@ var source2sourceSemantics = {
         cmds.toJS(this.args.indent, this.args.ctx));
   },
   Shebang: function(_a, _b, _c) {
-    var lines = ['#!/usr/bin/env node'];
-    Object.keys(plugins.exposedPlugins).forEach(function (name) {
-      lines.push("require('shelljs-plugin-" + name + "');");
-    });
-
-    lines.push(globalInclude.value ? "require('shelljs/global');" : "var shell = require('shelljs');");
-
+    var lines = ['#!/usr/bin/fish'];
     lines.push(''); // extra newline
     return lines.join('\n');
   },
@@ -408,7 +402,7 @@ var source2sourceSemantics = {
       if (allFunctions[cmd]) // if this is a function call
         return cmd + '(' + argList.join(', ') + ')';
       else
-        return "exec('" +
+        return "('" +
             this.sourceString
               .replace(/\\/g, '\\\\') // back slashes
               .replace(/'/g, "\\'") +   // quotes
@@ -515,7 +509,7 @@ var source2sourceSemantics = {
     return ret;
   },
   Call: function(_s, cmd, _e) {
-    return cmd.toJS(0, this.args.ctx).replace(/;$/, '') + ".replace(/\\n+$/, '')";
+    return cmd.toJS(0, this.args.ctx).replace(/;$/, '');
   },
   arrayReference: function(_s, arrId, _e) { return arrId.toJS(0, this.args.ctx); },
   arrayLength: function(_s, arrId, _e) { return arrId.toJS(0, this.args.ctx) + '.length'; },
@@ -541,13 +535,12 @@ var source2sourceSemantics = {
     if (varName.match(/^(shell.)?env.|^process.argv.|^_\$args./) || globalEnvironment[varName]) {
       ret = '';
     } else {
-      ret = varType.sourceString.indexOf('readonly') > -1 ? 'const ' : 'var ';
-      globalEnvironment[varName] = true; // mark it as declared
+      ret = "set"
     }
 
     var myexpr = expr.toJS(this.args.indent, this.args.ctx).toString();
     var ic = expr.sourceString;
-    ret += varName + " = " + (myexpr || "''");
+    ret += "" + varName + " " + (myexpr || "''");
     return ret;
   },
   allwhitespace: function(_) {
