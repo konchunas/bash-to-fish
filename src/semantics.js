@@ -451,25 +451,7 @@ var source2sourceSemantics = {
     return "'" + val.sourceString.replace(/\n/g, '\\n') + "'";
   },
   doubleString: function(_sq, val, _eq) {
-    var ret = '';
-    val.toJS(0, this.args.ctx).forEach(function (atom) {
-      if (atom.substr(0, 2) === '$$') { // a hack
-        // This is a variable
-        ret += "' + " + atom.slice(2) + " + '";
-      } else {
-        // This is just a character in the string
-        if (atom === '\\"')
-          ret += '"';
-        else if (atom === "'")
-          ret += "\\'";
-        else
-          ret += atom;
-      }
-    });
-    // Clean it up
-    ret = ("'" + ret + "'").replace(/^'' \+ /g, '').replace(/ \+ ''/g, '')
-        .replace(/\n/g, '\\n');
-    return ret;
+    return this.sourceString;
   },
   any: function(_) {
     return this.sourceString;
