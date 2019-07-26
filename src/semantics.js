@@ -42,10 +42,9 @@ function createTempVariable(){
 function testCmdHelper(negate, word1, operator, word2) {
   if (word1) {
     // binary command
-    var ret = word1.toJS(0, {}) + ' ' + operator.toJS(0, {}) + ' ' + word2.toJS(0, {});
-    return negate.sourceString ?
-        '!(' + ret + ')' :
-        ret;
+    var ret = "test " +  word1.toJS(0, {}) + ' ' + operator.toJS(0, {}) + ' ' + word2.toJS(0, {});
+    var not = negate.sourceString ? "not" : "";
+    return not + ret;
   } else {
     // unary command
     var opString = operator.sourceString || operator;
@@ -179,8 +178,7 @@ var semicolonCmdNames = [
 var source2sourceSemantics = {
   Cmd: function(e) {
     return (
-      this.sourceString && e.toJS(this.args.indent, this.args.ctx) +
-      (semicolonCmdNames.indexOf(e.ctorName) > -1 ? ';' : '')
+      this.sourceString && e.toJS(this.args.indent, this.args.ctx)
     );
   },
   IfCommand: function(ic, eit, elc, ef) {
@@ -296,23 +294,7 @@ var source2sourceSemantics = {
         commandSequence.toJS(this.args.indent+1, this.args.ctx).replace(/ *$/, '') + '}';
   },
   BinaryOp: function(op) {
-    var opTable = {
-      '=='  : '===',
-      '='   : '===',
-      '-eq' : '===',
-      '!='  : '!==',
-      '-ne' : '!==',
-      '\\<' : '<',
-      '-lt' : '<',
-      '\\>' : '>',
-      '-gt' : '>',
-      '-le' : '<=',
-      '-ge' : '>=',
-    };
-    var ret = opTable[this.sourceString];
-    if (typeof ret === 'undefined')
-      throw new Error('Unknown binary infix operator');
-    return ret;
+    return this.sourceString;
   },
   Script: function(shebang, space, cmds, _trailing) {
     // Initialze values
@@ -364,7 +346,7 @@ var source2sourceSemantics = {
       find: { opts: '', arity: [1], }, // no opts
       cat: { opts: '', arity: [0], }, // no opts
       which: { opts: '', arity: [1, 1], }, // no opts
-      echo: { opts: 'e', arity: [0], },
+    //   echo: { opts: 'e', arity: [0], },
       head: { opts: 'n', arity: [0], },
       tail: { opts: 'n', arity: [0], },
       pushd: { opts: 'n', arity: [0, 2], },
@@ -402,11 +384,7 @@ var source2sourceSemantics = {
       if (allFunctions[cmd]) // if this is a function call
         return cmd + '(' + argList.join(', ') + ')';
       else
-        return "('" +
-            this.sourceString
-              .replace(/\\/g, '\\\\') // back slashes
-              .replace(/'/g, "\\'") +   // quotes
-              "')";
+        return this.sourceString
     }
   },
   Redirect: function(arrow, bw) {
@@ -417,7 +395,7 @@ var source2sourceSemantics = {
     return cmd.toJS(this.args.indent, this.args.ctx) + '; ' + comment.toJS(this.args.indent, this.args.ctx);
   },
   // TODO(nate): make this preserve leading whitespace
-  comment: function(leadingWs, _, msg) { return leadingWs.sourceString + '//' + msg.sourceString; },
+  comment: function(leadingWs, _, msg) { return leadingWs.sourceString + '#' + msg.sourceString; },
   Bashword: function(val) {
     return val.toJS(0, this.args.ctx);
   },
@@ -540,7 +518,7 @@ var source2sourceSemantics = {
 
     var myexpr = expr.toJS(this.args.indent, this.args.ctx).toString();
     var ic = expr.sourceString;
-    ret += "" + varName + " " + (myexpr || "''");
+    ret += " " + varName + " " + (myexpr || "''");
     return ret;
   },
   allwhitespace: function(_) {
