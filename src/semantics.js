@@ -63,8 +63,8 @@ function testCmdHelper(negate, word1, operator, word2) {
         word2.toJS(0, {}) :
         '!(' + word2.toJS(0, {}) + ')';
     } else {
-      return (negated ? '!' : '' ) +
-          "test('" + opString + "', " + word2.toJS(0, {}) +")";
+      return (negated ? 'not' : '' ) +
+          "test {} {}".format(opString, word2.toJS(0, {}));
     }
   }
 }
@@ -195,7 +195,7 @@ var source2sourceSemantics = {
         cmds.toJS(this.args.indent+1, this.args.ctx);
   },
   ElseIfThen: function(_sc1, _ei, _s, cond, _sc2, _then, _s2, cmd) {
-    return nl(this.args.indent) + 'else if' + cond.toJS(this.args.indent, this.args.ctx) +
+    return nl(this.args.indent) + 'else if ' + cond.toJS(this.args.indent, this.args.ctx) +
         nl(this.args.indent+1) + cmd.toJS(this.args.indent+1, this.args.ctx);
   },
   ElseCase: function(_sc, _else, _space, cmd) {
@@ -216,10 +216,11 @@ var source2sourceSemantics = {
       ';' + update.sourceString;
   },
   ForCommand_for_each: function(_for, id, _in, call, _sc, _do, _s, cmd2, done) {
-    var mycall = call.toJS(this.args.indent, this.args.ctx).replace(/\.replace\(.*\)/, '');
-    return mycall + '.forEach(function (' + id.sourceString + ') {' +
+    var collection = call.toJS(this.args.indent, this.args.ctx);
+    let result = "for {} in {}".format(id.sourceString, collection)
+    return result +
         nl(this.args.indent+1) + cmd2.toJS(this.args.indent+1, this.args.ctx) +
-        nl(this.args.indent) + '});';
+        nl(this.args.indent) + 'end';
   },
   WhileCommand: function(_w, _s, cond, _sc, _do, _s2, cmd, done) {
     return 'while (' + cond.toJS(this.args.indent, this.args.ctx) + ') {' +
@@ -279,8 +280,6 @@ var source2sourceSemantics = {
   },
   Conditional_test: function(sc) {
     var ret = sc.toJS(0, this.args.ctx);
-    if (!globalInclude.value && ret.indexOf('test') > -1)
-      ret = ret.replace('test(', 'shell.test(');
     return ret;
   },
   Conditional_cmd: function(sc) {
@@ -369,7 +368,7 @@ var source2sourceSemantics = {
         JSON.stringify((sub.sourceString) || '') + ')';
   },
   reference_length: function(_ob, id, _cb) {
-    return '$$' + id.toJS(0, this.args.ctx) + '.length';
+    return '$(count ${})'.format(id.toJS(0, this.args.ctx));
   },
   notDoubleQuote_escape: function(_, _2) { return this.sourceString; },
   bareWord: function(chars) {
