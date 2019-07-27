@@ -1,3 +1,6 @@
+const format = require ('string-format')
+format.extend (String.prototype, {})
+
 var reservedWords = [
   'abstract', 'arguments', 'boolean', 'break', 'byte', 'case', 'catch', 'char',
   'class', 'const', 'continue', 'debugger', 'default', 'delete', 'do', 'double',
@@ -250,11 +253,11 @@ var source2sourceSemantics = {
     //TODO take case of fallthrough semisemi
     var varName = this.args.ctx.caseVar;
     var commentStr = comment.toJS(this.args.indent, this.args.ctx);
-    return opts.toJS(0, this.args.ctx)
-      .map((s) => "case " + '"s"').join(nl(this.args.indent)) +
+    return "case " + opts.toJS(0, this.args.ctx)
+      .map((s) => '{}'.format(s)).join(" ") +
       nl(this.args.indent + 1) +
       cmds.toJS(this.args.indent, this.args.ctx).join(nl(this.args.indent + 1)) +
-      nl(this.args.indent + 1) + (commentStr.length > 0 ? " " + commentStr : "");
+      (commentStr.length > 0 ? " " + commentStr : "");
   },
   TestCmd_cmd: function(_, insides) {
     return insides.toJS(0, this.args.ctx);
@@ -285,9 +288,9 @@ var source2sourceSemantics = {
   },
   CodeBlock: function(_b1, s1, commandSequence, _s2, _b2) {
     var spaceIc = s1.sourceString;
-    return ind(this.args.indent) + '{' +
+    return ind(this.args.indent) + 'begin' +
         (spaceIc && (spaceIc + ind(this.args.indent+1))) +
-        commandSequence.toJS(this.args.indent+1, this.args.ctx).replace(/ *$/, '') + '}';
+        commandSequence.toJS(this.args.indent+1, this.args.ctx) + 'end';
   },
   BinaryOp: function(op) {
     return this.sourceString;

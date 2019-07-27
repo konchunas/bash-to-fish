@@ -50,6 +50,7 @@
   },
   "dependencies": {
     "minimist": "^1.2.0",
-    "shelljs": "^0.7.0"
+    "shelljs": "^0.7.0",
+    "string-format": "^2.0.0"
   }
 }
