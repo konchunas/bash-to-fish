@@ -62,8 +62,8 @@ Bash {
   BinaryOp (Binary infix operator)
       = "=="  | "=" | "-eq"
       | "!="  | "-ne"
-      | "-lt" | "\\<"
-      | "-gt" | "\\>"
+      | "-lt" | "<"
+      | "-gt" | ">"
       | "-le"
       | "-ge"
 
