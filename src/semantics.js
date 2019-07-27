@@ -182,22 +182,49 @@ var source2sourceSemantics = {
   EndIf: function(_sc, _fi) {
     return nl(this.args.indent) + 'end';
   },
-  ForCommand: function(f) { return f.toJS(this.args.indent, this.args.ctx); },
-  ForCommand_c_style: function(_for, _op, ctrlstruct, _cp, _sc3, _do, _s, cmd, done) {
-    return 'for (' + ctrlstruct.toJS(0, this.args.ctx) + ') {' +
-        nl(this.args.indent+1) + cmd.toJS(this.args.indent+1, this.args.ctx) +
-        nl(this.args.indent) + '}';
+  ForCommand: function(f) {
+    return f.toJS(this.args.indent, this.args.ctx);
+  },
+  ForCommand_c_style: function(
+    _for,
+    _op,
+    ctrlstruct,
+    _cp,
+    _sc3,
+    _do,
+    _s,
+    cmd,
+    done
+  ) {
+    // TODO transpile math operations and conditions
+    let {assign, cond, step} = ctrlstruct.toJS(0, this.args.ctx);
+    result = assign + nl(this.args.indent);
+    result += "while {}".format(cond) + nl(this.args.indent + 1)
+    result += cmd.toJS(this.args.indent + 1, this.args.ctx)
+    result += nl(this.args.indent + 1) + step
+    result += nl(this.args.indent) + "end"
+    return result
   },
   ControlStruct: function(assign, _sc1, id, binop, val, _sc2, update) {
-    return assign.toJS(0, this.args.ctx) + ';' + id.sourceString + binop.toJS(0, this.args.ctx) + val.toJS(0, this.args.ctx) +
-      ';' + update.sourceString;
+    return {
+      assign: assign.toJS(0, this.args.ctx),
+      cond:
+        id.sourceString +
+        binop.toJS(0, this.args.ctx) +
+        val.toJS(0, this.args.ctx),
+      step: update.sourceString
+    };
   },
   ForCommand_for_each: function(_for, id, _in, call, _sc, _do, _s, cmd2, done) {
     var collection = call.toJS(this.args.indent, this.args.ctx);
-    let result = "for {} in {}".format(id.sourceString, collection)
-    return result +
-        nl(this.args.indent+1) + cmd2.toJS(this.args.indent+1, this.args.ctx) +
-        nl(this.args.indent) + 'end';
+    let result = "for {} in {}".format(id.sourceString, collection);
+    return (
+      result +
+      nl(this.args.indent + 1) +
+      cmd2.toJS(this.args.indent + 1, this.args.ctx) +
+      nl(this.args.indent) +
+      "end"
+    );
   },
   WhileCommand: function(_w, _s, cond, _sc, _do, _s2, cmd, done) {
     return 'while (' + cond.toJS(this.args.indent, this.args.ctx) + ') {' +
