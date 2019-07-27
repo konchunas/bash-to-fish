@@ -332,7 +332,13 @@ var source2sourceSemantics = {
   },
   SimpleCmdBase: function(scb) { return scb.toJS(this.args.indent, this.args.ctx); },
   SimpleCmdBase_std: function(firstword, args) {
-    var cmd = firstword.sourceString;
+    let cmd = firstword.sourceString;
+    const substitutions = {
+        getopts: "getopt",
+        declare: "set"
+    }
+    cmd = substitutions[cmd] || cmd;
+    
     var argList = args.toJS(0, this.args.ctx);
     return cmd + " " + argList.join(' ');
   },
