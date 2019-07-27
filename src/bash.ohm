@@ -36,7 +36,7 @@ Bash {
   ForCommand
       = "for" "((" ControlStruct "))" semicolon "do" #(allwhitespace+) CmdSequence Done
           -- c_style
-      | "for" id "in" (Call | arrayReference) semicolon "do" #(allwhitespace+) CmdSequence Done          -- for_each
+      | "for" id "in" (Call | arrayReference | bareWord*) semicolon "do" #(allwhitespace+) CmdSequence Done          -- for_each
 
   ControlStruct
       = Assignment ";" id BinaryOp Bashword ";" (~")" Bashword)
