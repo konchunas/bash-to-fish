@@ -96,17 +96,13 @@ function env(str) {
   return (globalInclude.value ? '' : 'shell.') + 'env.' + str;
 }
 
-function arrayName() {
-  return inFunctionBody ? '_$args' : 'process.argv';
-}
-
 function envGuess(str) {
   if (str === '?')
     return (globalInclude.value ? '' : 'shell.') + 'error()';
   if (str === '#')
     return arrayName() + '.length-1';
   else if (str.match(/^\d+$/))
-    return arrayName() + '[' + (JSON.parse(str)+(inFunctionBody ? -1 : 1)) + ']';
+    return 'argv[' + JSON.parse(str) + ']';
   else if (str === str.toUpperCase())
     return (globalInclude.value ? '' : 'shell.') + str; // assume it's an environmental variable
   else
@@ -242,7 +238,7 @@ var source2sourceSemantics = {
     var blockString = block.toJS(this.args.indent, this.args.ctx);
     inFunctionBody = false;
 
-    return 'function ' + idStr + '(..._$args) ' + blockString;
+    return 'function ' + idStr + " " + blockString;
   },
   CaseCommand: function(_case, expr, _in, _ws, cases, _ws2, _esac){
     var varName = createTempVariable();
@@ -291,7 +287,8 @@ var source2sourceSemantics = {
   },
   CodeBlock: function(_b1, s1, commandSequence, _s2, _b2) {
     var spaceIc = s1.sourceString;
-    return ind(this.args.indent) + 'begin' +
+    const begin = inFunctionBody ? "" : "begin"
+    return ind(this.args.indent) + begin +
         (spaceIc && (spaceIc + ind(this.args.indent+1))) +
         commandSequence.toJS(this.args.indent+1, this.args.ctx) + 'end';
   },
@@ -338,7 +335,7 @@ var source2sourceSemantics = {
         declare: "set"
     }
     cmd = substitutions[cmd] || cmd;
-    
+
     var argList = args.toJS(0, this.args.ctx);
     return cmd + " " + argList.join(' ');
   },
