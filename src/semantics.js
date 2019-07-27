@@ -43,29 +43,20 @@ function createTempVariable(){
 }
 
 function testCmdHelper(negate, word1, operator, word2) {
+  var is_negated = Boolean(negate.sourceString);
+  let negatedString = is_negated ? " !" : "";
   if (word1) {
     // binary command
-    var ret = "test " +  word1.toJS(0, {}) + ' ' + operator.toJS(0, {}) + ' ' + word2.toJS(0, {});
-    var not = negate.sourceString ? "not" : "";
-    return not + ret;
+    return "test{} {} {} {}".format(
+      negatedString,
+      word1.toJS(0, {}),
+      operator.toJS(0, {}),
+      word2.toJS(0, {})
+    );
   } else {
     // unary command
     var opString = operator.sourceString || operator;
-    var negated = Boolean(negate.sourceString);
-
-    if (opString === '-n') {
-      opString = '-z';
-      negated = !negated;
-    }
-
-    if (opString === '-z') {
-      return negated ?
-        word2.toJS(0, {}) :
-        '!(' + word2.toJS(0, {}) + ')';
-    } else {
-      return (negated ? 'not' : '' ) +
-          "test {} {}".format(opString, word2.toJS(0, {}));
-    }
+    return "test{} {} {}".format(negatedString, opString, word2.toJS(0, {}));
   }
 }
 
@@ -92,20 +83,6 @@ function nl(ind_count) {
   for (var k=0; k < ind_count; k++)
     ret += '  ';
   return ret;
-}
-
-function convertSed() {
-  var args = Array.prototype.slice.call(arguments, 0);
-  var match = args[0].match(/^(')s\/([^/]*)\/([^/]*)(\/(g?))?\1$/);
-  if (!match) {
-    throw new Error('Unable to match sed');
-  } else {
-    return "sed(/" +
-      match[2] + "/" + (match[5] || '') +
-      ", '" + match[3] + "'" +
-      (args.length > 1 ? ', ' + args.slice(1).join(', ') : '') +
-      ')';
-  }
 }
 
 function ind(ind_count) {
