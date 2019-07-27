@@ -240,25 +240,21 @@ var source2sourceSemantics = {
     var varName = createTempVariable();
     var indent = this.args.indent;
 
-    return nl(indent) + "var " + varName + " = " +
-    expr.toJS(0,this.args.ctx) + ";" + nl(indent) +
-    "switch (" + varName + ") {" + nl(indent + 1) +
+    return nl(indent) + "switch " + expr.toJS(0,this.args.ctx) +
+    nl(indent + 1) +
     cases.toJS(indent + 1, Object.assign(this.args.ctx,
       {caseVar:varName})).join(nl(indent + 1)) +
-    nl(indent) + "}";
+    nl(indent) + "end";
   },
   CaseCase: function(opts, _par, _ws, cmds, _ws2, _semisemi, comment){
+    //TODO take case of fallthrough semisemi
     var varName = this.args.ctx.caseVar;
     var commentStr = comment.toJS(this.args.indent, this.args.ctx);
     return opts.toJS(0, this.args.ctx)
-      .map(function (s) { 
-		var strippedStr = s.substr(1, s.length - 2);
-		return isGlobString(strippedStr) ? ("case " + s + ":")
-          : ("case (" + globStringToRegex(strippedStr) + ".test(" + varName + ") ? " + varName + " : NaN) :");
-      }).join(nl(this.args.indent)) +
+      .map((s) => "case " + '"s"').join(nl(this.args.indent)) +
       nl(this.args.indent + 1) +
       cmds.toJS(this.args.indent, this.args.ctx).join(nl(this.args.indent + 1)) +
-      nl(this.args.indent + 1) + "break;" + (commentStr.length > 0 ? " " + commentStr : "");
+      nl(this.args.indent + 1) + (commentStr.length > 0 ? " " + commentStr : "");
   },
   TestCmd_cmd: function(_, insides) {
     return insides.toJS(0, this.args.ctx);
@@ -315,18 +311,16 @@ var source2sourceSemantics = {
   CmdSequence: function(list) {
     return list.toJS(this.args.indent, this.args.ctx).join(nl(this.args.indent));
   },
-  PipeCmd: function(c1, _, spaces, c2) {
+  PipeCmd: function(c1, _pipeSymbol, spaces, c2) {
     var newlines = spaces.sourceString.replace(/[^\n]/g, '');
     return c1.toJS(this.args.indent, this.args.ctx) +
         (newlines ? newlines + ind(this.args.indent+1) : '') +
-        '.' +
-        c2.toJS(0, this.args.ctx).replace(/^shell\./, '');
+        ' | ' +
+        c2.toJS(0, this.args.ctx);
   },
   SimpleCmd: function(scb, redirects, ampersand) {
     var ret = scb.toJS(this.args.indent, this.args.ctx) +
         redirects.toJS(this.args.indent, this.args.ctx).join('');
-    if (ampersand.sourceString)
-      ret = ret.replace(')', ', {async: true})');
     if (!globalInclude.value) ret = 'shell.' + ret;
     return ret;
   },
@@ -334,58 +328,7 @@ var source2sourceSemantics = {
   SimpleCmdBase_std: function(firstword, args) {
     var cmd = firstword.sourceString;
     var argList = args.toJS(0, this.args.ctx);
-    var cmdLookup = {
-      cp: { opts: 'fnrRLP', arity: [1], },
-      rm: { opts: 'frR', arity: [1], },
-      mkdir: { opts: 'p', arity: [1], },
-      mv: { opts: 'fn', arity: [1], },
-      grep: { opts: 'vl', arity: [1], },
-      cd: { opts: '', arity: [0, 1], }, // no opts
-      pwd: { opts: '', arity: [0, 0], }, // no opts
-      ls: { opts: 'RAdl', arity: [0], },
-      find: { opts: '', arity: [1], }, // no opts
-      cat: { opts: '', arity: [0], }, // no opts
-      which: { opts: '', arity: [1, 1], }, // no opts
-    //   echo: { opts: 'e', arity: [0], },
-      head: { opts: 'n', arity: [0], },
-      tail: { opts: 'n', arity: [0], },
-      pushd: { opts: 'n', arity: [0, 2], },
-      popd: { opts: 'n', arity: [0, 2], },
-      dirs: { opts: 'c', arity: [0, 1], },
-      ln: { opts: 'sf', arity: [2, 3], },
-      exit: { opts: '', arity: [0, 1], }, // no opts
-      chmod: { opts: 'vcR', arity: [2], },
-      touch: { opts: 'acmdr', arity: [1], },
-      sort: { opts: 'rn', arity: [0], },
-      uniq: { opts: 'icd', arity: [0], },
-      set: { opts: 'evf', arity: [1, 1], },
-      sed: { opts: 'i', arity: [1], },
-    };
-    plugins.use(cmdLookup);
-    var thisCmd = cmdLookup[cmd] || {};
-    var arity = thisCmd.arity;
-    var opts = thisCmd.opts;
-
-    var match = argList[0] && argList[0].match(/^-([a-zA-Z]+)$/);
-    if (match) {
-      match[1].split('').forEach(function (usedFlag) {
-        // if the used flag isn't a ShellJS flag, give a warning
-        if (opts.indexOf(usedFlag) === -1)
-          warn(cmd + ' does not support flag: -' + usedFlag);
-      });
-    }
-    if (arity && arity[0] <= argList.length && (!arity.hasOwnProperty(1) || arity[1] >= argList.length)) {
-      if (cmd === 'sed') {
-        return convertSed.apply(this, argList);
-      } else {
-        return cmd + '(' + argList.join(', ') + ')';
-      }
-    } else {
-      if (allFunctions[cmd]) // if this is a function call
-        return cmd + '(' + argList.join(', ') + ')';
-      else
-        return this.sourceString
-    }
+    return cmd + " " + argList.join(' ');
   },
   Redirect: function(arrow, bw) {
     return (arrow.sourceString.match('>>') ? '.toEnd(' : '.to(') +
@@ -404,15 +347,15 @@ var source2sourceSemantics = {
   },
   reference: function(r) { return r.toJS(0, this.args.ctx); },
   reference_simple: function(_, id) {
-    return '$$' + envGuess(id.toJS(0, this.args.ctx));
+    return '$' + envGuess(id.toJS(0, this.args.ctx));
   },
   reference_wrapped: function(_, id, _2) {
-    return '$$' + envGuess(id.toJS(0, this.args.ctx));
+    return '{$' + envGuess(id.toJS(0, this.args.ctx)) + '}';
   },
   reference_substr: function(_ob, id, _col, dig, _col2, dig2, _cb) {
-    return '$$' + id.toJS(0, this.args.ctx) + '.substr(' + dig.sourceString +
-        (dig2.sourceString ? ', ' + dig2.sourceString : '') +
-        ')';
+    let from = dig.sourceString
+    let to = dig2.sourceString ? dig.sourceString + dig2.sourceString : ''
+    return '$(echo $' + id.toJS(0, this.args.ctx) + '| cut -c' + from + '-' + to + ')'
   },
   reference_substit: function(_ob, id, _sl1, pat, _sl2, sub, _cb) {
     var patStr = _sl1.sourceString === "//" ?
@@ -427,11 +370,11 @@ var source2sourceSemantics = {
   },
   notDoubleQuote_escape: function(_, _2) { return this.sourceString; },
   bareWord: function(chars) {
-    return ("'" + chars.toJS(0, this.args.ctx).join('') + "'").replace(/^'' \+ /g, '').replace(/ \+ ''/g, '');
+    return chars.toJS(0, this.args.ctx).join('');
   },
   barewordChar: function(ch) { return ch.toJS(0, this.args.ctx); },
   barewordChar_str: function(mystring) {
-    return "' + " + mystring.toJS(0, this.args.ctx) + " + '";
+    return mystring.toJS(0, this.args.ctx);
   },
   barewordChar_normal: function(atom) {
     atom = atom.toJS(0, this.args.ctx);
