@@ -448,10 +448,7 @@ var source2sourceSemantics = {
   },
   number: function(_1, _2) { return this.sourceString; },
   semicolon: function(_) {
-    if (true)
-      return 'foo';
-    else
-      return this.sourceString;
+    return this.sourceString;
   }
 };
 
