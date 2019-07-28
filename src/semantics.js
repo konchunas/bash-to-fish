@@ -1,3 +1,6 @@
+const format = require ('string-format')
+format.extend (String.prototype, {})
+
 var reservedWords = [
   'abstract', 'arguments', 'boolean', 'break', 'byte', 'case', 'catch', 'char',
   'class', 'const', 'continue', 'debugger', 'default', 'delete', 'do', 'double',
@@ -20,40 +23,35 @@ function warn(message) {
   }
 }
 
+var tempCounter = 0;
+function createTempVariable(){
+  return "$tmp"+tempCounter++;
+}
+
 function testCmdHelper(negate, word1, operator, word2) {
+  var is_negated = Boolean(negate.sourceString);
+  let negatedString = is_negated ? " !" : "";
   if (word1) {
     // binary command
-    var ret = word1.toJS(0) + ' ' + operator.toJS(0) + ' ' + word2.toJS(0);
-    return negate.sourceString ?
-        '!(' + ret + ')' :
-        ret;
+    return "test{} {} {} {}".format(
+      negatedString,
+      word1.toJS(0, {}),
+      operator.toJS(0, {}),
+      word2.toJS(0, {})
+    );
   } else {
     // unary command
     var opString = operator.sourceString || operator;
-    var negated = Boolean(negate.sourceString);
-
-    if (opString === '-n') {
-      opString = '-z';
-      negated = !negated;
-    }
-
-    if (opString === '-z') {
-      return negated ?
-        word2.toJS(0) :
-        '!(' + word2.toJS(0) + ')';
-    } else {
-      return (negated ? '!' : '' ) +
-          "test('" + opString + "', " + word2.toJS(0) +")";
-    }
+    return "test{} {} {}".format(negatedString, opString, word2.toJS(0, {}));
   }
 }
 
 function cmd_helper(opts, args) {
   var params = [];
   if (opts && opts.sourceString)
-    params.push(opts.toJS(0));
+    params.push(opts.toJS(0, this.args.ctx));
   if (args && args.sourceString) {
-    var js_args = args.toJS(0);
+    var js_args = args.toJS(0, this.args.ctx);
     if (typeof js_args === 'string') {
       params.push(js_args);
     } else {
@@ -73,20 +71,6 @@ function nl(ind_count) {
   return ret;
 }
 
-function convertSed() {
-  var args = Array.prototype.slice.call(arguments, 0);
-  var match = args[0].match(/^(')s\/([^/]*)\/([^/]*)(\/(g?))?\1$/);
-  if (!match) {
-    throw new Error('Unable to match sed');
-  } else {
-    return "sed(/" +
-      match[2] + "/" + (match[5] || '') +
-      ", '" + match[3] + "'" +
-      (args.length > 1 ? ', ' + args.slice(1).join(', ') : '') +
-      ')';
-  }
-}
-
 function ind(ind_count) {
   var ret = '';
   for (var k=0; k < ind_count; k++)
@@ -98,19 +82,15 @@ function env(str) {
   return (globalInclude.value ? '' : 'shell.') + 'env.' + str;
 }
 
-function arrayName() {
-  return inFunctionBody ? '_$args' : 'process.argv';
-}
-
 function envGuess(str) {
   if (str === '?')
     return (globalInclude.value ? '' : 'shell.') + 'error()';
   if (str === '#')
     return arrayName() + '.length-1';
   else if (str.match(/^\d+$/))
-    return arrayName() + '[' + (JSON.parse(str)+(inFunctionBody ? -1 : 1)) + ']';
+    return 'argv[' + JSON.parse(str) + ']';
   else if (str === str.toUpperCase())
-    return (globalInclude.value ? '' : 'shell.') + 'env.' + str; // assume it's an environmental variable
+    return (globalInclude.value ? '' : 'shell.') + str; // assume it's an environmental variable
   else
     return str;
 }
@@ -160,73 +140,120 @@ var semicolonCmdNames = [
 var source2sourceSemantics = {
   Cmd: function(e) {
     return (
-      this.sourceString && e.toJS(this.args.indent) +
-      (semicolonCmdNames.indexOf(e.ctorName) > -1 ? ';' : '')
+      this.sourceString && e.toJS(this.args.indent, this.args.ctx)
     );
   },
   IfCommand: function(ic, eit, elc, ef) {
-    return ic.toJS(this.args.indent) +
-      eit.toJS(this.args.indent) +
-      elc.toJS(this.args.indent) +
-      ef.toJS(this.args.indent);
+    return ic.toJS(this.args.indent, this.args.ctx) +
+      eit.toJS(this.args.indent, this.args.ctx) +
+      elc.toJS(this.args.indent, this.args.ctx) +
+      ef.toJS(this.args.indent, this.args.ctx);
   },
   IfCase: function(_if, _s, cond, _sc, _then, _s2, cmds) {
-    return 'if (' + cond.toJS(this.args.indent) + ') {' + nl(this.args.indent+1) +
-        cmds.toJS(this.args.indent+1);
+    return 'if ' + cond.toJS(this.args.indent, this.args.ctx) + nl(this.args.indent+1) +
+        cmds.toJS(this.args.indent+1, this.args.ctx);
   },
   ElseIfThen: function(_sc1, _ei, _s, cond, _sc2, _then, _s2, cmd) {
-    return nl(this.args.indent) + '} else if (' + cond.toJS(this.args.indent) +
-        ') {' + nl(this.args.indent+1) + cmd.toJS(this.args.indent+1);
+    return nl(this.args.indent) + 'else if ' + cond.toJS(this.args.indent, this.args.ctx) +
+        nl(this.args.indent+1) + cmd.toJS(this.args.indent+1, this.args.ctx);
   },
   ElseCase: function(_sc, _else, _space, cmd) {
-    return nl(this.args.indent) + '} else {' + nl(this.args.indent+1) +
-        cmd.toJS(this.args.indent+1);
+    return nl(this.args.indent) + 'else' + nl(this.args.indent+1) +
+        cmd.toJS(this.args.indent+1, this.args.ctx);
   },
   EndIf: function(_sc, _fi) {
-    return nl(this.args.indent) + '}';
+    return nl(this.args.indent) + 'end';
   },
-  ForCommand: function(f) { return f.toJS(this.args.indent); },
-  ForCommand_c_style: function(_for, _op, ctrlstruct, _cp, _sc3, _do, _s, cmd, done) {
-    return 'for (' + ctrlstruct.toJS(0) + ') {' +
-        nl(this.args.indent+1) + cmd.toJS(this.args.indent+1) +
-        nl(this.args.indent) + '}';
+  ForCommand: function(f) {
+    return f.toJS(this.args.indent, this.args.ctx);
+  },
+  ForCommand_c_style: function(
+    _for,
+    _op,
+    ctrlstruct,
+    _cp,
+    _sc3,
+    _do,
+    _s,
+    cmd,
+    done
+  ) {
+    // TODO transpile math operations and conditions
+    let {assign, cond, step} = ctrlstruct.toJS(0, this.args.ctx);
+    result = assign + nl(this.args.indent);
+    result += "while {}".format(cond) + nl(this.args.indent + 1)
+    result += cmd.toJS(this.args.indent + 1, this.args.ctx)
+    result += nl(this.args.indent + 1) + step
+    result += nl(this.args.indent) + "end"
+    return result
   },
   ControlStruct: function(assign, _sc1, id, binop, val, _sc2, update) {
-    return assign.toJS(0) + ';' + id.sourceString + binop.toJS(0) + val.toJS(0) +
-      ';' + update.sourceString;
+    return {
+      assign: assign.toJS(0, this.args.ctx),
+      cond:
+        id.sourceString +
+        binop.toJS(0, this.args.ctx) +
+        val.toJS(0, this.args.ctx),
+      step: update.sourceString
+    };
   },
   ForCommand_for_each: function(_for, id, _in, call, _sc, _do, _s, cmd2, done) {
-    var mycall = call.toJS(this.args.indent).replace(/\.replace\(.*\)/, '');
-    return mycall + '.forEach(function (' + id.sourceString + ') {' +
-        nl(this.args.indent+1) + cmd2.toJS(this.args.indent+1) +
-        nl(this.args.indent) + '});';
+    var collection = call.toJS(this.args.indent, this.args.ctx);
+    let result = "for {} in {}".format(id.sourceString, collection);
+    return (
+      result +
+      nl(this.args.indent + 1) +
+      cmd2.toJS(this.args.indent + 1, this.args.ctx) +
+      nl(this.args.indent) +
+      "end"
+    );
   },
   WhileCommand: function(_w, _s, cond, _sc, _do, _s2, cmd, done) {
-    return 'while (' + cond.toJS(this.args.indent) + ') {' +
-        nl(this.args.indent+1) + cmd.toJS(this.args.indent+1) +
-        done.toJS(this.args.indent);
+    return 'while ' + cond.toJS(this.args.indent, this.args.ctx) +
+        nl(this.args.indent+1) + cmd.toJS(this.args.indent+1, this.args.ctx) +
+        done.toJS(this.args.indent, this.args.ctx);
   },
   Done: function(_sc, _) {
-    return nl(this.args.indent) + '}';
+    return nl(this.args.indent) + 'end';
   },
   FunctionDecl: function(_fun, _sp1, id, _paren, _sp2, block) {
-    var idStr = id.toJS(0);
+    var idStr = id.toJS(0, this.args.ctx);
     allFunctions[idStr] = true;
 
     inFunctionBody = true;
-    var blockString = block.toJS(this.args.indent);
+    var blockString = block.toJS(this.args.indent, this.args.ctx);
     inFunctionBody = false;
 
-    return 'function ' + idStr + '(..._$args) ' + blockString;
+    return 'function ' + idStr + " " + blockString;
+  },
+  CaseCommand: function(_case, expr, _in, _ws, cases, _ws2, _esac){
+    var varName = createTempVariable();
+    var indent = this.args.indent;
+
+    return nl(indent) + "switch " + expr.toJS(0,this.args.ctx) +
+    nl(indent + 1) +
+    cases.toJS(indent + 1, Object.assign(this.args.ctx,
+      {caseVar:varName})).join(nl(indent + 1)) +
+    nl(indent) + "end";
+  },
+  CaseCase: function(opts, _par, _ws, cmds, _ws2, _semisemi, comment){
+    //TODO take care of fallthrough semisemi
+    var varName = this.args.ctx.caseVar;
+    var commentStr = comment.toJS(this.args.indent, this.args.ctx);
+    return "case " + opts.toJS(0, this.args.ctx)
+      .map((s) => '{}'.format(s)).join(" ") +
+      nl(this.args.indent + 1) +
+      cmds.toJS(this.args.indent, this.args.ctx).join(nl(this.args.indent + 1)) +
+      (commentStr.length > 0 ? " " + commentStr : "");
   },
   TestCmd_cmd: function(_, insides) {
-    return insides.toJS(0);
+    return insides.toJS(0, this.args.ctx);
   },
   TestCmd_singleBracket: function(_ob, _spaces, insides, _cb) {
-    return insides.toJS(0);
+    return insides.toJS(0, this.args.ctx);
   },
   TestCmd_doubleBracket: function(_ob, _spaces, insides, _cb) {
-    return insides.toJS(0);
+    return insides.toJS(0, this.args.ctx);
   },
   TestInsides_unary: function(negate, binop, bw) {
     return testCmdHelper(negate, null, binop, bw);
@@ -238,38 +265,21 @@ var source2sourceSemantics = {
     return testCmdHelper(negate, null, '-n', bw);
   },
   Conditional_test: function(sc) {
-    var ret = sc.toJS(0);
-    if (!globalInclude.value && ret.indexOf('test') > -1)
-      ret = ret.replace('test(', 'shell.test(');
+    var ret = sc.toJS(0, this.args.ctx);
     return ret;
   },
   Conditional_cmd: function(sc) {
-    return sc.toJS(0) + '.code === 0';
+    return sc.toJS(0, this.args.ctx) + '.code === 0';
   },
   CodeBlock: function(_b1, s1, commandSequence, _s2, _b2) {
     var spaceIc = s1.sourceString;
-    return ind(this.args.indent) + '{' +
+    const begin = inFunctionBody ? "" : "begin"
+    return ind(this.args.indent) + begin +
         (spaceIc && (spaceIc + ind(this.args.indent+1))) +
-        commandSequence.toJS(this.args.indent+1).replace(/ *$/, '') + '}';
+        commandSequence.toJS(this.args.indent+1, this.args.ctx) + 'end';
   },
   BinaryOp: function(op) {
-    var opTable = {
-      '=='  : '===',
-      '='   : '===',
-      '-eq' : '===',
-      '!='  : '!==',
-      '-ne' : '!==',
-      '\\<' : '<',
-      '-lt' : '<',
-      '\\>' : '>',
-      '-gt' : '>',
-      '-le' : '<=',
-      '-ge' : '>=',
-    };
-    var ret = opTable[this.sourceString];
-    if (typeof ret === 'undefined')
-      throw new Error('Unknown binary infix operator');
-    return ret;
+    return this.sourceString;
   },
   Script: function(shebang, space, cmds, _trailing) {
     // Initialze values
@@ -278,148 +288,90 @@ var source2sourceSemantics = {
 
     return (this.sourceString.match(/^(\s)*$/) ?
           '' :
-          shebang.toJS(this.args.indent) +
+          shebang.toJS(this.args.indent, this.args.ctx) +
         space.sourceString +
-        cmds.toJS(this.args.indent));
+        cmds.toJS(this.args.indent, this.args.ctx));
   },
   Shebang: function(_a, _b, _c) {
-    var lines = ['#!/usr/bin/env node'];
-    Object.keys(plugins.exposedPlugins).forEach(function (name) {
-      lines.push("require('shelljs-plugin-" + name + "');");
-    });
-
-    lines.push(globalInclude.value ? "require('shelljs/global');" : "var shell = require('shelljs');");
-
+    var lines = ['#!/usr/bin/fish'];
     lines.push(''); // extra newline
     return lines.join('\n');
   },
   CmdSequence: function(list) {
-    return list.toJS(this.args.indent).join(nl(this.args.indent));
+    return list.toJS(this.args.indent, this.args.ctx).join(nl(this.args.indent));
   },
-  PipeCmd: function(c1, _, spaces, c2) {
+  PipeCmd: function(c1, _pipeSymbol, spaces, c2) {
     var newlines = spaces.sourceString.replace(/[^\n]/g, '');
-    return c1.toJS(this.args.indent) +
+    return c1.toJS(this.args.indent, this.args.ctx) +
         (newlines ? newlines + ind(this.args.indent+1) : '') +
-        '.' +
-        c2.toJS(0).replace(/^shell\./, '');
+        ' | ' +
+        c2.toJS(0, this.args.ctx);
   },
   SimpleCmd: function(scb, redirects, ampersand) {
-    var ret = scb.toJS(this.args.indent) +
-        redirects.toJS(this.args.indent).join('');
-    if (ampersand.sourceString)
-      ret = ret.replace(')', ', {async: true})');
+    var ret = scb.toJS(this.args.indent, this.args.ctx) + " " +
+        redirects.toJS(this.args.indent, this.args.ctx).join(' ');
     if (!globalInclude.value) ret = 'shell.' + ret;
     return ret;
   },
-  SimpleCmdBase: function(scb) { return scb.toJS(this.args.indent); },
+  SimpleCmdBase: function(scb) { return scb.toJS(this.args.indent, this.args.ctx); },
   SimpleCmdBase_std: function(firstword, args) {
-    var cmd = firstword.sourceString;
-    var argList = args.toJS(0);
-    var cmdLookup = {
-      cp: { opts: 'fnrRLP', arity: [1], },
-      rm: { opts: 'frR', arity: [1], },
-      mkdir: { opts: 'p', arity: [1], },
-      mv: { opts: 'fn', arity: [1], },
-      grep: { opts: 'vl', arity: [1], },
-      cd: { opts: '', arity: [0, 1], }, // no opts
-      pwd: { opts: '', arity: [0, 0], }, // no opts
-      ls: { opts: 'RAdl', arity: [0], },
-      find: { opts: '', arity: [1], }, // no opts
-      cat: { opts: '', arity: [0], }, // no opts
-      which: { opts: '', arity: [1, 1], }, // no opts
-      echo: { opts: 'e', arity: [0], },
-      head: { opts: 'n', arity: [0], },
-      tail: { opts: 'n', arity: [0], },
-      pushd: { opts: 'n', arity: [0, 2], },
-      popd: { opts: 'n', arity: [0, 2], },
-      dirs: { opts: 'c', arity: [0, 1], },
-      ln: { opts: 'sf', arity: [2, 3], },
-      exit: { opts: '', arity: [0, 1], }, // no opts
-      chmod: { opts: 'vcR', arity: [2], },
-      touch: { opts: 'acmdr', arity: [1], },
-      sort: { opts: 'rn', arity: [0], },
-      uniq: { opts: 'icd', arity: [0], },
-      set: { opts: 'evf', arity: [1, 1], },
-      sed: { opts: 'i', arity: [1], },
-    };
-    plugins.use(cmdLookup);
-    var thisCmd = cmdLookup[cmd] || {};
-    var arity = thisCmd.arity;
-    var opts = thisCmd.opts;
+    let cmd = firstword.sourceString;
+    const substitutions = {
+        getopts: "getopt",
+        declare: "set"
+    }
+    cmd = substitutions[cmd] || cmd;
 
-    var match = argList[0] && argList[0].match(/^-([a-zA-Z]+)$/);
-    if (match) {
-      match[1].split('').forEach(function (usedFlag) {
-        // if the used flag isn't a ShellJS flag, give a warning
-        if (opts.indexOf(usedFlag) === -1)
-          warn(cmd + ' does not support flag: -' + usedFlag);
-      });
-    }
-    if (arity && arity[0] <= argList.length && (!arity.hasOwnProperty(1) || arity[1] >= argList.length)) {
-      if (cmd === 'sed') {
-        return convertSed.apply(this, argList);
-      } else {
-        return cmd + '(' + argList.join(', ') + ')';
-      }
-    } else {
-      if (allFunctions[cmd]) // if this is a function call
-        return cmd + '(' + argList.join(', ') + ')';
-      else
-        return "exec('" +
-            this.sourceString
-              .replace(/\\/g, '\\\\') // back slashes
-              .replace(/'/g, "\\'") +   // quotes
-              "')";
-    }
+    var argList = args.toJS(0, this.args.ctx);
+    return cmd + " " + argList.join(' ');
   },
   Redirect: function(arrow, bw) {
-    return (arrow.sourceString.match('>>') ? '.toEnd(' : '.to(') +
-        bw.toJS(0) + ')';
+    return arrow.sourceString + " " + bw.toJS(0, this.args.ctx);
   },
   CmdWithComment: function(cmd, comment) {
-    return cmd.toJS(this.args.indent) + '; ' + comment.toJS(this.args.indent);
+    return cmd.toJS(this.args.indent, this.args.ctx) + '; ' + comment.toJS(this.args.indent, this.args.ctx);
   },
   // TODO(nate): make this preserve leading whitespace
-  comment: function(leadingWs, _, msg) { return leadingWs.sourceString + '//' + msg.sourceString; },
+  comment: function(leadingWs, _, msg) { return leadingWs.sourceString + '#' + msg.sourceString; },
   Bashword: function(val) {
-    return val.toJS(0);
+    return val.toJS(0, this.args.ctx);
   },
   ArrayLiteral: function(_op, _sp1, bws, _sp2, _cp) {
-    return '[' + bws.toJS(0).join(', ') + ']';
+    return bws.toJS(0, this.args.ctx).join(' ');
   },
-  reference: function(r) { return r.toJS(0); },
+  reference: function(r) { return r.toJS(0, this.args.ctx); },
   reference_simple: function(_, id) {
-    return '$$' + envGuess(id.toJS(0));
+    return '$' + envGuess(id.toJS(0, this.args.ctx));
   },
   reference_wrapped: function(_, id, _2) {
-    return '$$' + envGuess(id.toJS(0));
+    return '{$' + envGuess(id.toJS(0, this.args.ctx)) + '}';
   },
   reference_substr: function(_ob, id, _col, dig, _col2, dig2, _cb) {
-    return '$$' + id.toJS(0) + '.substr(' + dig.sourceString +
-        (dig2.sourceString ? ', ' + dig2.sourceString : '') +
-        ')';
+    let from = dig.sourceString
+    let to = dig2.sourceString ? dig.sourceString + dig2.sourceString : ''
+    return '$(echo $' + id.toJS(0, this.args.ctx) + '| cut -c' + from + '-' + to + ')'
   },
   reference_substit: function(_ob, id, _sl1, pat, _sl2, sub, _cb) {
     var patStr = _sl1.sourceString === "//" ?
         new RegExp(pat.sourceString, 'g').toString() :
         JSON.stringify(pat.sourceString);
-    return '$$' + id.toJS(0) + '.replace(' +
+    return '$$' + id.toJS(0, this.args.ctx) + '.replace(' +
         patStr + ', ' +
         JSON.stringify((sub.sourceString) || '') + ')';
   },
   reference_length: function(_ob, id, _cb) {
-    return '$$' + id.toJS(0) + '.length';
+    return '$(count ${})'.format(id.toJS(0, this.args.ctx));
   },
   notDoubleQuote_escape: function(_, _2) { return this.sourceString; },
   bareWord: function(chars) {
-    return ("'" + chars.toJS(0).join('') + "'").replace(/^'' \+ /g, '').replace(/ \+ ''/g, '');
+    return chars.toJS(0, this.args.ctx).join('');
   },
-  barewordChar: function(ch) { return ch.toJS(0); },
+  barewordChar: function(ch) { return ch.toJS(0, this.args.ctx); },
   barewordChar_str: function(mystring) {
-    return "' + " + mystring.toJS(0) + " + '";
+    return mystring.toJS(0, this.args.ctx);
   },
   barewordChar_normal: function(atom) {
-    atom = atom.toJS(0);
+    atom = atom.toJS(0, this.args.ctx);
     if (atom.substr(0, 2) === '$$') { // a hack
       // This is a variable
       return "' + " + atom.slice(2) + " + '";
@@ -429,32 +381,14 @@ var source2sourceSemantics = {
     }
   },
   barewordChar_escape: function(_, c) {
-    return c.toJS(0);
+    return c.toJS(0, this.args.ctx);
   },
-  stringLiteral: function(string) { return string.toJS(this.args.indent); },
+  stringLiteral: function(string) { return string.toJS(this.args.indent, this.args.ctx); },
   singleString: function(_sq, val, _eq) {
-    return "'" + val.sourceString.replace(/\n/g, '\\n') + "'";
+    return "'" + val.sourceString + "'";
   },
   doubleString: function(_sq, val, _eq) {
-    var ret = '';
-    val.toJS(0).forEach(function (atom) {
-      if (atom.substr(0, 2) === '$$') { // a hack
-        // This is a variable
-        ret += "' + " + atom.slice(2) + " + '";
-      } else {
-        // This is just a character in the string
-        if (atom === '\\"')
-          ret += '"';
-        else if (atom === "'")
-          ret += "\\'";
-        else
-          ret += atom;
-      }
-    });
-    // Clean it up
-    ret = ("'" + ret + "'").replace(/^'' \+ /g, '').replace(/ \+ ''/g, '')
-        .replace(/\n/g, '\\n');
-    return ret;
+    return this.sourceString;
   },
   any: function(_) {
     return this.sourceString;
@@ -472,56 +406,49 @@ var source2sourceSemantics = {
     return ret;
   },
   Call: function(_s, cmd, _e) {
-    return cmd.toJS(0).replace(/;$/, '') + ".replace(/\\n+$/, '')";
+    return "(" + cmd.toJS(0, this.args.ctx) + ")";
   },
-  arrayReference: function(_s, arrId, _e) { return arrId.toJS(0); },
-  arrayLength: function(_s, arrId, _e) { return arrId.toJS(0) + '.length'; },
+  arrayReference: function(_s, arrId, _e) {
+    return "$" + arrId.toJS(0, this.args.ctx);
+  },
+  arrayLength: function(_s, arrId, _e) {
+    return "(count ${})".format(arrId.toJS(0, this.args.ctx));
+  },
   Export: function(e) {
-    return e.toJS(this.args.indent);
+    return e.toJS(this.args.indent, this.args.ctx);
   },
   Export_bare: function(_, id) {
-    id_str = id.toJS(0);
-    return (id_str.match(/env\./) ? id_str : env(id_str)) +
-        ' = ' + id_str;
-  },
-  Export_assign: function(_, assign) {
-    assign_str = assign.toJS(0).replace(/^(var|const) /, '');
-    var id = assign_str.match(/^([^ ]+) =/)[1];
-    return (id.match(/env\./) ? '' : env(id) + ' = ') +
-        assign_str;
+    id_str = id.toJS(0, this.args.ctx);
+    return "set -x {}".format(id_str)
   },
   Assignment: function(varType, name, _eq, expr) {
-    // Check if this variable is assigned already. If not, stick it in the
-    // environment
-    var ret;
-    var varName = name.toJS(0).trim();
-    if (varName.match(/^(shell.)?env.|^process.argv.|^_\$args./) || globalEnvironment[varName]) {
-      ret = '';
-    } else {
-      ret = varType.sourceString.indexOf('readonly') > -1 ? 'const ' : 'var ';
-      globalEnvironment[varName] = true; // mark it as declared
-    }
+    var varName = name.toJS(0, this.args.ctx).trim();
 
-    var myexpr = expr.toJS(this.args.indent).toString();
+    var myexpr = expr.toJS(this.args.indent, this.args.ctx).toString();
+    let typeString = varType.sourceString
+    let modifier = " "
+    if (typeString.includes("export")) {
+        modifier += "-x ";
+    }
+    else if (typeString.includes("local")) {
+        modifier += "-l "
+    }
     var ic = expr.sourceString;
-    ret += varName + " = " + (myexpr || "''");
-    return ret;
+    var result = "set" + modifier + varName + " " + (myexpr || "''");
+    return result;
   },
   allwhitespace: function(_) {
     return this.sourceString;
   },
   NonemptyListOf: function(x, sep, xs) {
-    return [x.toJS(this.args.indent)].concat(xs.toJS(this.args.indent));
+    return [x.toJS(this.args.indent, this.args.ctx)].concat(xs.toJS(this.args.indent, this.args.ctx));
   },
   EmptyListOf: function() {
     return [];
   },
   number: function(_1, _2) { return this.sourceString; },
   semicolon: function(_) {
-    if (true)
-      return 'foo';
-    else
-      return this.sourceString;
+    return this.sourceString;
   }
 };
 

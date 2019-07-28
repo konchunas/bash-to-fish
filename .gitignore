@@ -8,3 +8,4 @@ node_modules/
 input.sh
 
 *.pdf
+.vscode/launch.json
