@@ -322,8 +322,8 @@ var source2sourceSemantics = {
         c2.toJS(0, this.args.ctx);
   },
   SimpleCmd: function(scb, redirects, ampersand) {
-    var ret = scb.toJS(this.args.indent, this.args.ctx) +
-        redirects.toJS(this.args.indent, this.args.ctx).join('');
+    var ret = scb.toJS(this.args.indent, this.args.ctx) + " " +
+        redirects.toJS(this.args.indent, this.args.ctx).join(' ');
     if (!globalInclude.value) ret = 'shell.' + ret;
     return ret;
   },
@@ -340,8 +340,7 @@ var source2sourceSemantics = {
     return cmd + " " + argList.join(' ');
   },
   Redirect: function(arrow, bw) {
-    return (arrow.sourceString.match('>>') ? '.toEnd(' : '.to(') +
-        bw.toJS(0, this.args.ctx) + ')';
+    return arrow.sourceString + " " + bw.toJS(0, this.args.ctx);
   },
   CmdWithComment: function(cmd, comment) {
     return cmd.toJS(this.args.indent, this.args.ctx) + '; ' + comment.toJS(this.args.indent, this.args.ctx);
@@ -352,7 +351,7 @@ var source2sourceSemantics = {
     return val.toJS(0, this.args.ctx);
   },
   ArrayLiteral: function(_op, _sp1, bws, _sp2, _cp) {
-    return '[' + bws.toJS(0, this.args.ctx).join(', ') + ']';
+    return bws.toJS(0, this.args.ctx).join(' ');
   },
   reference: function(r) { return r.toJS(0, this.args.ctx); },
   reference_simple: function(_, id) {
@@ -400,7 +399,7 @@ var source2sourceSemantics = {
   },
   stringLiteral: function(string) { return string.toJS(this.args.indent, this.args.ctx); },
   singleString: function(_sq, val, _eq) {
-    return "'" + val.sourceString.replace(/\n/g, '\\n') + "'";
+    return "'" + val.sourceString + "'";
   },
   doubleString: function(_sq, val, _eq) {
     return this.sourceString;
@@ -423,37 +422,34 @@ var source2sourceSemantics = {
   Call: function(_s, cmd, _e) {
     return "(" + cmd.toJS(0, this.args.ctx) + ")";
   },
-  arrayReference: function(_s, arrId, _e) { return arrId.toJS(0, this.args.ctx); },
-  arrayLength: function(_s, arrId, _e) { return arrId.toJS(0, this.args.ctx) + '.length'; },
+  arrayReference: function(_s, arrId, _e) {
+    return "$" + arrId.toJS(0, this.args.ctx);
+  },
+  arrayLength: function(_s, arrId, _e) {
+    return "(count ${})".format(arrId.toJS(0, this.args.ctx));
+  },
   Export: function(e) {
     return e.toJS(this.args.indent, this.args.ctx);
   },
   Export_bare: function(_, id) {
     id_str = id.toJS(0, this.args.ctx);
-    return (id_str.match(/env\./) ? id_str : env(id_str)) +
-        ' = ' + id_str;
-  },
-  Export_assign: function(_, assign) {
-    assign_str = assign.toJS(0, this.args.ctx).replace(/^(var|const) /, '');
-    var id = assign_str.match(/^([^ ]+) =/)[1];
-    return (id.match(/env\./) ? '' : env(id) + ' = ') +
-        assign_str;
+    return "set -x {}".format(id_str)
   },
   Assignment: function(varType, name, _eq, expr) {
-    // Check if this variable is assigned already. If not, stick it in the
-    // environment
-    var ret;
     var varName = name.toJS(0, this.args.ctx).trim();
-    if (varName.match(/^(shell.)?env.|^process.argv.|^_\$args./) || globalEnvironment[varName]) {
-      ret = '';
-    } else {
-      ret = "set"
-    }
 
     var myexpr = expr.toJS(this.args.indent, this.args.ctx).toString();
+    let typeString = varType.sourceString
+    let modifier = " "
+    if (typeString.includes("export")) {
+        modifier += "-x ";
+    }
+    else if (typeString.includes("local")) {
+        modifier += "-l "
+    }
     var ic = expr.sourceString;
-    ret += " " + varName + " " + (myexpr || "''");
-    return ret;
+    var result = "set" + modifier + varName + " " + (myexpr || "''");
+    return result;
   },
   allwhitespace: function(_) {
     return this.sourceString;

@@ -12,8 +12,8 @@ Bash {
       | WhileCommand
       | CmdWithComment
       | PipeCmd
-      | Export
       | Assignment
+      | Export
       | SimpleCmd
       | CaseCommand
       | ("" ~keyword)
@@ -107,6 +107,7 @@ Bash {
   Bashword
       = Call
       | ArrayLiteral
+      | ArrayIndex
       | arrayLength
       | arrayReference
       | number
@@ -120,6 +121,9 @@ Bash {
       | "\"$(" Cmd ")\""
       | "`" Cmd "`"
       | "\"`" Cmd "`\""
+
+  ArrayIndex
+    = "${" id "[" Bashword "]}"
 
   arrayReference
       = "${" id "[@]}"
@@ -167,12 +171,13 @@ Bash {
       = (~("\"" | "\\") (reference | any))
       | "\\" any -- escape
 
-  badchars = allwhitespace | "|" | ";" | ">" | "#" | "'" | "\"" | "`" | "(" | ")" | "&" | "{" | "}"
-  Export
-      = "export " Assignment -- assign
-      | "export " id -- bare
+  badchars = allwhitespace | "|" | ";" | ">" | "#" | "'" | "\"" | "`" | "(" | ")" | "&" | "{" | "}" | "@"
+
   Assignment
-      = ("local " | "readonly ")? #(id_std "=" ~space) Bashword?
+      = ("local " | "readonly " | "export ")? #(id_std "=" ~space) Bashword?
+
+  Export
+      = "export " id -- bare
 
   id  = (~keyword (letter | "_") (alnum | "_")*) -- std
       | digit+ -- arg
