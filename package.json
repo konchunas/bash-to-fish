@@ -30,7 +30,7 @@
   },
   "license": "MIT",
   "bin": {
-    "sh2js": "./bin/sh2js"
+    "bash2fish": "./bin/bash2fish"
   },
   "files": [
     "package.json",
