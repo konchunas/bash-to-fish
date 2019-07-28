@@ -23,20 +23,6 @@ function warn(message) {
   }
 }
 
-function globStringToRegex(str) {
-    function preg_quote (str, delimiter) {
-        // http://stackoverflow.com/a/13818704
-        return (str + '').replace(new RegExp('[.\\\\+*?\\[\\^\\]$(){}=!<>|:\\' + (delimiter || '') + '-]', 'g'), '\\$&');
-    }
-
-    return new RegExp("^" + preg_quote(str).replace(/\\\*/g, '.*').replace(/\\\?/g, '.') + "$", 'g');
-}
-
-function isGlobString(str){
-  return globStringToRegex(str).toString() === "/^" + str + "$/g";
-}
-
-
 var tempCounter = 0;
 function createTempVariable(){
   return "$tmp"+tempCounter++;
@@ -223,12 +209,12 @@ var source2sourceSemantics = {
     );
   },
   WhileCommand: function(_w, _s, cond, _sc, _do, _s2, cmd, done) {
-    return 'while (' + cond.toJS(this.args.indent, this.args.ctx) + ') {' +
+    return 'while ' + cond.toJS(this.args.indent, this.args.ctx) +
         nl(this.args.indent+1) + cmd.toJS(this.args.indent+1, this.args.ctx) +
         done.toJS(this.args.indent, this.args.ctx);
   },
   Done: function(_sc, _) {
-    return nl(this.args.indent) + '}';
+    return nl(this.args.indent) + 'end';
   },
   FunctionDecl: function(_fun, _sp1, id, _paren, _sp2, block) {
     var idStr = id.toJS(0, this.args.ctx);
@@ -251,7 +237,7 @@ var source2sourceSemantics = {
     nl(indent) + "end";
   },
   CaseCase: function(opts, _par, _ws, cmds, _ws2, _semisemi, comment){
-    //TODO take case of fallthrough semisemi
+    //TODO take care of fallthrough semisemi
     var varName = this.args.ctx.caseVar;
     var commentStr = comment.toJS(this.args.indent, this.args.ctx);
     return "case " + opts.toJS(0, this.args.ctx)
