@@ -273,7 +273,7 @@ var source2sourceSemantics = {
     return ret;
   },
   Conditional_cmd: function(sc) {
-    return sc.toJS(0, this.args.ctx) + '.code === 0';
+    return sc.toJS(0, this.args.ctx)
   },
   CodeBlock: function(_b1, s1, commandSequence, _s2, _b2) {
     var spaceIc = s1.sourceString;
