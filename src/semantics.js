@@ -343,6 +343,12 @@ var source2sourceSemantics = {
   ArrayLiteral: function(_op, _sp1, bws, _sp2, _cp) {
     return bws.toJS(0, this.args.ctx).join(' ');
   },
+  ArrayIndex: function(_ss, id, _bs, index, _end) {
+    index = index.toJS(0, this.args.ctx);
+    //TODO consider using (math $index + 1) to sustain indexing
+    index = !isNaN(index) ? parseInt(index) + 1 : index;
+    return "${}[{}]".format(id.toJS(0, this.args.ctx), index)
+  },
   reference: function(r) { return r.toJS(0, this.args.ctx); },
   reference_simple: function(_, id) {
     return '$' + envGuess(id.toJS(0, this.args.ctx));
