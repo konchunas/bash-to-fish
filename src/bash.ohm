@@ -85,6 +85,8 @@ Bash {
   Redirect
       = ">" Bashword
       | ">>" Bashword
+      | "<" Bashword
+      | "<<" Bashword
 
   SimpleCmdBase
       = TestCmd
@@ -126,6 +128,7 @@ Bash {
       | arrayLength
       | arrayReference
       | number
+      | reference
       | bareWord
 
   ArrayLiteral
@@ -189,7 +192,7 @@ Bash {
   badchars = allwhitespace | "|" | ";" | ">" | "#" | "'" | "\"" | "`" | "(" | ")" | "&" | "{" | "}" | "@"
 
   Assignment
-      = ("local " | "readonly " | "export ")? #(id_std "=" ~space) Bashword?
+      = ("local " | "readonly " | "export ")? #(id_std "=" ~space) Bashword*
 
   Export
       = "export " id -- bare
