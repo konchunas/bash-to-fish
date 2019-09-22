@@ -67,7 +67,7 @@ Bash {
       | "-le"
       | "-ge"
 
-  UnaryOp (Unary operator)
+  UnaryOp
       = "-z" | "-n" | "-b" | "-c" | "-d" | "-e" | "-f" | "-L" | "-p" | "-S"
 
   SequenceCmd
@@ -95,17 +95,32 @@ Bash {
       | #("[[" space+) TestInsides "]]"     -- doubleBracket
       | #("[" space+) TestInsides "]"       -- singleBracket
 
+
   TestInsides
       = "!"? UnaryOp Bashword               -- unary
       | "!"? Bashword BinaryOp Bashword     -- binary
       | "!"? Bashword                       -- str
+
+  MathSubstitution
+      = "$((" MathInsides "))"
+
+  MathInsides
+      = Bashword MathUnaryOp -- unary
+      | Bashword MathBinaryOp Bashword -- binary
+
+  MathBinaryOp
+      = "+"  | "-" | "**" | "*" | "/" | "%"
+
+  MathUnaryOp
+      = "++" | "--"
 
   CmdName = (~keyword Bashword #(~alnum))
   comment = space* "#" (~"\n" any)*
   /* modOptions = ("-" |"+" ) letter+ */
 
   Bashword
-      = Call
+      = MathSubstitution
+      | Call
       | ArrayLiteral
       | ArrayIndex
       | arrayLength

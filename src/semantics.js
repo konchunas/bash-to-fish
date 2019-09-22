@@ -44,7 +44,7 @@ function testCmdHelper(negate, word1, operator, word2) {
       word2.toJS(0, {})
     );
   } else {
-    // unary command
+    //TODO: proper unary operation handler
     var opString = operator.sourceString || operator;
     return "test{} {} {}".format(negatedString, opString, word2.toJS(0, {}));
   }
@@ -282,6 +282,24 @@ var source2sourceSemantics = {
         (spaceIc && (spaceIc + ind(this.args.indent+1))) +
         commandSequence.toJS(this.args.indent+1, this.args.ctx) + 'end';
   },
+  MathSubstitution: function (_, insides, _) {
+    return insides.toJS(0, this.args.ctx)
+  },
+  //HACK to replace unary increment or decrement
+  MathInsides_unary: function (bashword, mathUnaryOp) {
+      let operator = mathUnaryOp.toJS(0, this.args.ctx) == "++" ? "+" : "-"
+      let operand = bashword.toJS(0, this.args.ctx)
+      return '(set ${} (math "${}{}1"))'.format(operand, operand, operator)
+  },
+  //TODO detect what operands are actually variables by tracking all names beforehand 
+  MathInsides_binary: function (first, mathBinaryOp, second) {
+    let operator = mathBinaryOp.toJS(0, this.args.ctx)
+    first = first.toJS(0, this.args.ctx)
+    second = second.toJS(0, this.args.ctx)
+    return '(math "{} {} {}")'.format(first, operator, second)
+  },
+  MathBinaryOp: (op) => op.sourceString,
+  MathUnaryOp: (op) => op.sourceString,
   BinaryOp: function(op) {
     return this.sourceString;
   },
